@@ -1,4 +1,4 @@
-global currentdir = "C:\Users\mjbaker\Desktop\ACS\Extracted"
+global currentdir = "C:\Users\mjbaker\Documents\github\ShareFormNMNL\"
 set more off
 
 cd $currentdir
@@ -42,10 +42,21 @@ forvalues i=1/15 {
 /* the real puzzle to understand is why people drive so much alone to their workplaces */
 /* So, we will make this the null class */
 
-bysort geography year: gen group1 = class == 10 
-bysort geography year: gen group2 = class >= 2 & class <=5
-bysort geography year: gen group3 = class == 6 | class == 9
-bysort geography year: gen group4 = class == 7 | class == 8
+*bysort geography year: gen group1 = class == 10 
+*bysort geography year: gen group2 = class >= 2 & class <=5
+*bysort geography year: gen group3 = class == 6 | class == 9
+*bysort geography year: gen group4 = class == 7 | class == 8
+
+bysort geography year: gen group1 = class == 10 | class == 2
+bysort geography year: gen group2 = class >= 3 & class <=5
+bysort geography year: gen group3 = class == 7 | class == 9
+bysort geography year: gen group4 = class == 6 | class == 8
+
+
+
+
+
+
 bysort geography year: gen gnull  = class == 1 
 
 bysort geography year: gen g1s = group1*share
@@ -180,8 +191,7 @@ tab geography, gen(gd)
 
 /* We put in group dummies, and drop one from each category as well */
 
-reg lns lnswg group2 group3  carpool2 carpool3 carpool4 taxi bike
-
+reg lns lnswg group2 group3 carpool2 carpool3 carpool4 taxi bike
 
 /* Include a time trend , including group-specific trends */
 
@@ -196,13 +206,11 @@ reg lns lnswg group2 group3 group4 carpool carpool2 carpool3 carpool4 taxi bike 
 
 /* Very first thing - let's work with the "right" function here, and only consider a carpool dummy */
 
-
 capture program drop mlfunbase
 program mlfunbase
     version 14.1
     args lnf mu rho1 sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma'
-	quietly replace `lnf' = `lnf' + ($ML_y3 - 1)*ln(1 - `rho1') if $ML_y4 == 1	
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho1'^2)
 end
 
 gen Ng = 1
@@ -216,11 +224,23 @@ replace group = 2 if group2
 replace group = 3 if group3
 replace group = 4 if group4
 
-bysort geography year group: gen last = _n == _N
+bysort xtvcode year group: gen last = _n == _N
 
-ml model lf mlfunbase (mu: lns lnswg Ng last = group2 group3 group4) (rho1:) (sigma:)
+
+ml model lf mlfunbase (mu: lns lnswg Ng last = ) (rho1:) (sigma:)
 ml maximize
 
-ml model lf mlfunbase (mu: lns lnswg Ng last = group2 group3 group4) (rho1: group2 group3 group4) (sigma: )
-ml maximize
+ml model lf mlfunbase (mu: lns lnswg Ng last group1 group2 group3 = ) (rho1: ) (sigma: ) if state=="New Jersey"
+ml maximize, difficult
+
+gen gy2 = group2*year
+gen gy3 = group3*year
+gen gy4 = group4*year
+
+ml model lf mlfunbase (mu: lns lnswg Ng last = group2 group3 group4 incounty) (rho1: ) (sigma:)
+ml maximize, difficult
+
+/* Maybe there are just too many different places */
+/* What if we just do California? */ 
+/* Or large counties? */
 

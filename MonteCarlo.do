@@ -34,7 +34,7 @@
 	
 /* within-group parameter */
     
-	scalar rho = .5
+	scalar rho = .3
 	
 /* Generating shares and utilities */
     
@@ -76,25 +76,24 @@ capture program drop mlfunbase
 program mlfunbase
     version 14.1
     args lnf mu rho sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*`sigma') - 1/2*ln(`sigma')  
-	quietly replace `lnf' = `lnf' - ($ML_y3 - 1)*ln(1-`rho') if $ML_y4 == 1
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*`sigma') - 1/2*ln(`sigma')  + $ML_y4 * ($ML_y3 - 1)*ln(1-`rho')
 end
 	
 ml model lf mlfunbase (mu: lns lnswg N lg = g2 g3) (rho:) (sigma:)
 ml maximize
 	
-/* Above doesn't work...the rho parameter wanders off - unstable! */
+/* How would GMM work in this case? We need an instrument that is a) correlated
+   with the within-group share, but is not correlated with the share itself. 	*/
 
-/* Let's now introduce the above where we use a different version of the parms */
+gen inst1 = lnswg + rnormal(0,1)
+gen inst2 = lnswg + rnormal(0,1)*.1
+gen inst3 = lnswg + runiform(0,1)
+gen inst4 = inst1 + inst2 - inst3 + rnormal(0,1)*.05
 
+ivreg2 lns g2 g3 (lnswg = inst1)
+ivreg2 lns g2 g3 (lnswg = inst1 inst2)
+	
+drop inst5	
+gen inst5 = lnswg*.1 + rnormal(0, 6)
 
-   
-	
-	
-	
-	
-	
-	
-	
-	
-	
+ivreg2 lns g2 g3 (lnswg = inst5)
