@@ -1,4 +1,5 @@
-use "C:\Users\matthew\Downloads\medicare.dta", clear
+capture use "C:\Users\matthew\Downloads\medicare.dta", clear
+capture use "C:\Users\\mjbaker\\Downloads\\medicare.dta", clear
 
 drop if Enrolled_y == "nan"
 drop if Eligibles  == "nan"
