@@ -96,6 +96,26 @@ gen size = ln(elig)
 
 quietly tab State, gen(sd)
 
+/* Before doing any serious stuff, let's get some graphs going */
+
+gen time = ym(year, month)
+
+gen co_st = County + State
+
+egen obsno = group(co_st)
+
+preserve 
+
+bysort obsno time: gen type1 = ptype==1
+bysort obsno time: gen type2 = ptype==2
+bysort obsno time: gen type3 = ptype==3
+bysort obsno time: gen type4 = ptype==4
+
+collapse (count) si (mean) type1 type2 type3 type4, by(obsno time)
+
+
+
+
 capture program drop mlfunbase
 program mlfunbase
     version 14.1
