@@ -27,6 +27,7 @@ drop if State == "AS" | State == "GB" | State == "AK" | State == "GU" |  ///
         State == "PR" | State == "VI" | State == "nan"
 
 drop if County == "Bedford City" /* Not sure what's going on here... */
+drop if County == "Pinal" & State=="AZ" /* this is also screwy */
 		
 		
 /* Notes: it looks like contract ID and Organization_Name contain the information
@@ -102,16 +103,35 @@ gen time = ym(year, month)
 
 gen co_st = County + State
 
-egen obsno = group(co_st)
+egen cobsno = group(co_st)
 
-preserve 
+bysort cobsno time: gen type1 = ptype==1
+bysort cobsno time: gen type2 = ptype==2
+bysort cobsno time: gen type3 = ptype==3
+bysort cobsno time: gen type4 = ptype==4
 
-bysort obsno time: gen type1 = ptype==1
-bysort obsno time: gen type2 = ptype==2
-bysort obsno time: gen type3 = ptype==3
-bysort obsno time: gen type4 = ptype==4
+/* What we want are some simple time-series measures by county, obsno and time */
+/* We can then look at these however we like...*/
 
-collapse (count) si (mean) type1 type2 type3 type4, by(obsno time)
+bysort cobsno time: gen lastc = _n == _N
+bysort cobsno time: egen sh_cty_1 = total((ptype==1)*si)
+bysort cobsno time: egen sh_cty_2 = total((ptype==2)*si)
+bysort cobsno time: egen sh_cty_3 = total((ptype==3)*si)
+bysort cobsno time: egen sh_cty_4 = total((ptype==4)*si)
+
+bysort cobsno time: egen n_cty_1  = total((ptype==1))
+bysort cobsno time: egen n_cty_2  = total((ptype==2))
+bysort cobsno time: egen n_cty_3  = total((ptype==3))
+bysort cobsno time: egen n_cty_4  = total((ptype==4))
+
+/* Analysis of County Level Data */
+
+preserve
+
+keep if lastc
+
+xtset cobsno time
+
 
 
 
