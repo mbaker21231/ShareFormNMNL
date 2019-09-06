@@ -1,3 +1,6 @@
+/* This file uses the one developed in CreateData.ipynb */
+
+
 capture use "C:\Users\matthew\Downloads\medicare.dta", clear
 capture use "C:\Users\\mjbaker\\Downloads\\medicare.dta", clear
 
@@ -132,10 +135,6 @@ keep if lastc
 
 xtset cobsno time
 
-
-
-
-
 capture program drop mlfunbase
 program mlfunbase
     version 14.1
@@ -160,8 +159,15 @@ ml maximize
 /* With year dummies instead of a linear trend */
 
 tab year, gen(yd)
+tab month, gen(md)
 
-ml model lf mlfunbase (mu: y ln_swg N lastg = yd* CCP MSA PFS yearCCP yearMSA yearPFS sd*) (rho1:) (sigma:)
+local timevars 
+forvalues i = 1/11 {
+    gen ydmd`i' = yd`i'*md`i'
+    local timevars "`timevars' yd`i' md`i' ydmd`i' "
+}
+
+ml model lf mlfunbase (mu: y ln_swg N lastg = CCP MSA PFS sd* `timevars') (rho1:) (sigma:)
 ml maximize
 
 capture program drop mlfun2
@@ -179,7 +185,14 @@ program mlfun2
 	    ($ML_y5 == 4)*$ML_y4 * ($ML_y3 - 1)*ln(1 - `rho4') 
 end
 
-ml model lf mlfun2 (mu: y ln_swg N lastg ptype = yd* CCP MSA PFS yearCCP yearMSA yearPFS sd*) ///
+local timevars 
+forvalues i = 1/11 {
+    local timevars "`timevars' yd`i' md`i' ydmd`i' "
+}
+
+
+
+ml model lf mlfun2 (mu: y ln_swg N lastg ptype = CCP MSA PFS `timevars' sd*) ///
     (rho1:) (rho2:) (rho3:) (rho4:) (sigma:)
 ml maximize
 
