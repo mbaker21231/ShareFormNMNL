@@ -3,6 +3,8 @@
 capture use "C:\Users\matthew\Downloads\medicare.dta", clear
 capture use "C:\Users\\mjbaker\\Downloads\\medicare.dta", clear
 
+set more off
+
 drop if Enrolled_y == "nan"
 drop if Eligibles  == "nan"
 
@@ -238,7 +240,7 @@ capture program drop mlfunbase2
 program mlfunbase2
     version 14.1
     args lnf mu rho sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1)/$ML_y3 * ln(1 - `rho')
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1)/$ML_y3 * ln(1 - `rho'^2)
 end
 
 ml model lf mlfunbase2 (mu: y ln_swg N = year PPO PFS COS PCE MSA) (rho:) (sigma:)
@@ -271,70 +273,42 @@ end
 ml model lf mlfunbase (mu: y ln_swg N lastg PT = yd* sd* PPO PFS COS PCE MSA) (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
 ml maximize
 
+capture program drop mlfunbase
+program mlfunbase
+    version 14.1
+    args lnf mu rho1 rho2 rho3 rho4 rho5 rho6 sigma
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho1'^2) if $ML_y5 == 1
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho2'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho2'^2) if $ML_y5 == 2
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho3'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho3'^2) if $ML_y5 == 3
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho4'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho4'^2) if $ML_y5 == 4
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho5'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho5'^2) if $ML_y5 == 5
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho6'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho6'^2) if $ML_y5 == 6
+
+end
+
+ml model lf mlfunbase (mu: y ln_swg N lastg PT = lnelig yd* sd* PPO PFS COS PCE MSA) (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma: PPO PFS COS PCE MSA)
+ml maximize
 
 
-
-
-
-
-
-
-
-
-quietly tab State, gen(sd)
 
 /* Before doing any serious stuff, let's get some graphs going */
-
 
 gen aetna = strpos(Organization_Name, "AETNA") > 0
 gen ahfmco = strpos(Organization_Name, "AHF MCO") > 0
 
 gen blbs = strpos(Organization_Name, "BLUE CROSS") > 0
 replace blbs = strpos(Organization_Name, "BLUECROSS") > 0 if blbs == 0
+
+ml model lf mlfunbase (mu: y ln_swg N lastg PT = yd* sd* PPO PFS COS PCE MSA aetna ahfmco blbs large) ///
+                (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
+ml maximize
+
+
 gen time = ym(year, month)
 
 gen co_st = County + State
 
 egen cobsno = group(co_st)
-
-bysort cobsno time: gen type1 = ptype==1
-bysort cobsno time: gen type2 = ptype==2
-bysort cobsno time: gen type3 = ptype==3
-bysort cobsno time: gen type4 = ptype==4
-
-/* What we want are some simple time-series measures by county, obsno and time */
-/* We can then look at these however we like...*/
-
-bysort cobsno time: gen lastc = _n == _N
-bysort cobsno time: egen sh_cty_1 = total((ptype==1)*si)
-bysort cobsno time: egen sh_cty_2 = total((ptype==2)*si)
-bysort cobsno time: egen sh_cty_3 = total((ptype==3)*si)
-bysort cobsno time: egen sh_cty_4 = total((ptype==4)*si)
-
-bysort cobsno time: egen n_cty_1  = total((ptype==1))
-bysort cobsno time: egen n_cty_2  = total((ptype==2))
-bysort cobsno time: egen n_cty_3  = total((ptype==3))
-bysort cobsno time: egen n_cty_4  = total((ptype==4))
-
-/* Analysis of County Level Data */
-
-preserve
-
-keep if lastc
-
-xtset cobsno time
-
-
-/* With state-specific effects and plan-specific time trends */
-
-gen yearCCP = year*CCP
-gen yearMSA = year*MSA
-gen yearPFS = year*PFS
-
-ml model lf mlfunbase (mu: y ln_swg N lastg = year CCP MSA PFS yearCCP yearMSA yearPFS sd*) (rho1:) (sigma:)
-ml maximize
-
-/* With year dummies instead of a linear trend */
 
 tab year, gen(yd)
 tab month, gen(md)
@@ -345,49 +319,26 @@ forvalues i = 1/11 {
     local timevars "`timevars' yd`i' md`i' ydmd`i' "
 }
 
-ml model lf mlfunbase (mu: y ln_swg N lastg = CCP MSA PFS sd* `timevars') (rho1:) (sigma:)
-ml maximize
+gmm ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/({sigma=1}^2) ) ///
+    ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)^2 - {sigma}^2 ) ///
+	( lnswg*(lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ), ///
+	 instruments(1: g2 g3) instruments(2: ) instruments(3: ) winitial(unadjusted, independent) conv_maxiter(50)
 
-capture program drop mlfun2
-program mlfun2
+capture program drop mlfunbase2
+program mlfunbase2
     version 14.1
-    args lnf mu rho1 rho2 rho3 rho4 sigma
-	tempvar rho
-	
-	quietly gen double `rho' = `rho1'*( $ML_y5 == 1) + `rho2'*($ML_y5 == 2) + `rho3'*($ML_y5 == 3) + `rho4'*($ML_y5 == 4)
-	
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ///
-	    ($ML_y5 == 1)*$ML_y4 * ($ML_y3 - 1)*ln(1 - `rho1') + ///
-	    ($ML_y5 == 2)*$ML_y4 * ($ML_y3 - 1)*ln(1 - `rho2') + ///
-	    ($ML_y5 == 3)*$ML_y4 * ($ML_y3 - 1)*ln(1 - `rho3') + ///
-	    ($ML_y5 == 4)*$ML_y4 * ($ML_y3 - 1)*ln(1 - `rho4') 
-end
+    args lnf mu rho1 rho2 rho3 rho4 rho5 rho6 sigma
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho1') if $ML_y4 == 1
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho2'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho2') if $ML_y4 == 2
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho3'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho3') if $ML_y4 == 3
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho4'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho4') if $ML_y4 == 4
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho5'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho5') if $ML_y4 == 5
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho6'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho6') if $ML_y4 == 6
 
-local timevars 
-forvalues i = 1/11 {
-    local timevars "`timevars' yd`i' md`i' ydmd`i' "
-}
-
-
-
-ml model lf mlfun2 (mu: y ln_swg N lastg ptype = CCP MSA PFS `timevars' sd*) ///
-    (rho1:) (rho2:) (rho3:) (rho4:) (sigma:)
+end	 
+	 
+ml model lf mlfunbase2 (mu: y ln_swg N PT = yd* sd* PPO PFS COS PCE MSA aetna ahfmco blbs large) ///
+                (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
 ml maximize
-
-ml model lf mlfun2 (mu: y ln_swg N lastg ptype = yd* CCP MSA PFS yearCCP yearMSA yearPFS sd*) ///
-    (rho1:) (rho2:) (rho3:) (rho4:) (sigma: CCP MSA PFS)
-ml maximize
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	 
+	 

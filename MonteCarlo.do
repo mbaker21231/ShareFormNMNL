@@ -81,6 +81,17 @@ end
 	
 ml model lf mlfunbase (mu: lns lnswg N lg = g2 g3) (rho:) (sigma:)
 ml maximize
+
+capture program drop mlfunbase2
+program mlfunbase2
+    version 14.1
+    args lnf mu rho sigma
+	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*`sigma') - 1/2*ln(`sigma')  + ($ML_y3 - 1)/$ML_y3*ln(1-`rho')
+end
+	
+ml model lf mlfunbase2 (mu: lns lnswg N = g2 g3) (rho:) (sigma:)
+ml maximize
+
 	
 /* How would GMM work in this case? We need an instrument that is a) correlated
    with the within-group share, but is not correlated with the share itself. 	*/
@@ -93,7 +104,27 @@ gen inst4 = inst1 + inst2 - inst3 + rnormal(0,1)*.05
 ivreg2 lns g2 g3 (lnswg = inst1)
 ivreg2 lns g2 g3 (lnswg = inst1 inst2)
 	
-drop inst5	
 gen inst5 = lnswg*.1 + rnormal(0, 6)
 
 ivreg2 lns g2 g3 (lnswg = inst5)
+
+/* Let's try estimating things via the gmm tool */
+/* It works! */
+
+gmm ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/({sigma=1}^2) ) ///
+    ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)^2 - {sigma}^2 ) ///
+	( lnswg*(lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/{sigma}^2 - lg*(N-1)/(1-{rho}) ), ///
+	 instruments(1: g2 g3) instruments(2: ) instruments(3: ) winitial(unadjusted, independent) conv_maxiter(50)
+	 
+/* What about a slightly different version of this? */	 
+	 
+gmm ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/({sigma=1}^2) ) ///
+    ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)^2 - {sigma}^2 ) ///
+	( lnswg*(lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ), ///
+	 instruments(1: g2 g3) instruments(2: ) instruments(3: ) winitial(unadjusted, independent) conv_maxiter(50)
+	 
+/* Works equally well */
+
+
+ 
+	 

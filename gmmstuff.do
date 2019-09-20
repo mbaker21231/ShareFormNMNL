@@ -16,6 +16,6 @@ ml model lf mynormal_reg (mpg = weight) ( )
 ml maximize
 
 gmm ( (mpg - {b0} - {b1}*weight)/(2*{v=1}^2) ) ///
-    ( (mpg - {b0} - {b1}*weight)^2 - {v}^2), ///
+    ( (mpg - {b0} - {b1}*weight)^2 - {v}^2 ), ///
 	instruments(1: weight) instruments(2: ) winit(unadjusted, independent)
 
