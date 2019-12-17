@@ -37,8 +37,9 @@ drop if County == "Pinal" & State=="AZ" /* this is also screwy */
 
 gen day = 1
 gen double date = mdy(month, day, year)
+replace date = mofd(date)
 drop day
-format date %d
+format date %tm
 
 /* There are some duplicates, which seem as though enrollments are broken out */
 /* into two parts. Here is a fix */
@@ -196,7 +197,6 @@ bysort State County year month: egen total_PFS = total((PT == 4) * plan_enr)
 bysort State County year month: egen total_MSA = total((PT == 5) * plan_enr)
 bysort State County year month: egen total_PCE = total((PT == 6) * plan_enr)
 
-
 gen swg_COS = plan_enr * (PT == 1) / total_COS
 gen swg_HMO = plan_enr * (PT == 2) / total_HMO
 gen swg_PPO = plan_enr * (PT == 3) / total_PPO
@@ -204,8 +204,21 @@ gen swg_PFS = plan_enr * (PT == 4) / total_PFS
 gen swg_MSA = plan_enr * (PT == 5) / total_MSA
 gen swg_PCE = plan_enr * (PT == 6) / total_PCE
 
+gen sgg_COS = total_COS/enr_tot_calc_adj
+gen sgg_HMO = total_HMO/enr_tot_calc_adj
+gen sgg_PPO = total_PPO/enr_tot_calc_adj
+gen sgg_PFS = total_PFS/enr_tot_calc_adj
+gen sgg_MSA = total_MSA/enr_tot_calc_adj
+gen sgg_PCE = total_PCE/enr_tot_calc_adj
+
 bysort State County year month PT: egen N = count(PT)
 bysort State County year month PT: gen lastg = _n == N
+
+/* Counts of the grouping variable */
+/* Counts of total N for the purposes of grouping */
+
+bysort State County year month: egen G = total(lastg)    /* total groups */
+bysort State County year month: egen GN = count(lastg)   /* total plans  */
 
 gen si = plan_enr / elig
 
@@ -213,6 +226,7 @@ gen so  = 1-share_MA
 
 gen lnsi = ln(si)
 gen lnso = ln(so)
+gen lnsmed = ln(share_MA)
 
 gen     ln_swg = ln(swg_COS) if PT == 1
 replace ln_swg = ln(swg_HMO) if PT == 2
@@ -220,6 +234,14 @@ replace ln_swg = ln(swg_PPO) if PT == 3
 replace ln_swg = ln(swg_PFS) if PT == 4
 replace ln_swg = ln(swg_MSA) if PT == 5
 replace ln_swg = ln(swg_PCE) if PT == 6
+
+gen     ln_sgg = ln(sgg_COS) if PT == 1
+replace ln_sgg = ln(sgg_HMO) if PT == 2
+replace ln_sgg = ln(sgg_PPO) if PT == 3
+replace ln_sgg = ln(sgg_PFS) if PT == 4
+replace ln_sgg = ln(sgg_MSA) if PT == 5
+replace ln_sgg = ln(sgg_PCE) if PT == 6
+
 
 gen y = lnsi - lnso
 
@@ -233,32 +255,25 @@ program mlfunbase
 	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho')
 end
 
-ml model lf mlfunbase (mu: y ln_swg N lastg = year PPO PFS COS PCE MSA) (rho:) (sigma:)
+ml model lf mlfunbase (mu: y ln_swg N lastg = PPO PFS COS PCE MSA) (rho:) (sigma: ) 
 ml maximize
 
-capture program drop mlfunbase2
-program mlfunbase2
-    version 14.1
-    args lnf mu rho sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1)/$ML_y3 * ln(1 - `rho'^2)
-end
-
-ml model lf mlfunbase2 (mu: y ln_swg N = year PPO PFS COS PCE MSA) (rho:) (sigma:)
-ml maximize
-
-
+gmm ( (y - {b0} - {xb: PPO PFS COS PCE MSA} - {rho}*ln_swg)/({sigma=1}^2) )      ///
+    ( (y - {b0} - {xb:}                     - {rho}*ln_swg )^2 - {sigma}^2 )     ///
+	( ln_swg*(y - {b0} - {xb:} - {rho:}*ln_swg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ) , ///
+	instruments(1: PPO PFS COS PCE MSA) instruments(2: ) instruments(3: ) winitial(unadjusted, independent) conv_maxiter(50)
 
 /* With year dummies */
 
 tab year, gen(yd)
 tab State, gen(sd)
+tab month, gen(md)
 
-ml model lf mlfunbase (mu: y ln_swg N lastg = PPO PFS COS PCE MSA yd* sd* lnelig) (rho: lnelig PPO PFS COS PCE MSA) (sigma:)
+ml model lf mlfunbase (mu: y ln_swg N lastg = PPO PFS COS PCE MSA yd* sd* md*) (rho:  PPO PFS COS PCE MSA) (sigma: PPO PFS COS PCE MSA md*) 
 ml maximize
 
-
-capture program drop mlfunbase
-program mlfunbase
+capture program drop mlfunbase2
+program mlfunbase2
     version 14.1
     args lnf mu rho1 rho2 rho3 rho4 rho5 rho6 sigma
 	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho1') if $ML_y5 == 1
@@ -270,75 +285,230 @@ program mlfunbase
 
 end
 
-ml model lf mlfunbase (mu: y ln_swg N lastg PT = yd* sd* PPO PFS COS PCE MSA) (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
+ml model lf mlfunbase2 (mu: y ln_swg N lastg PT = PPO PFS COS PCE MSA yd* sd*) (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:) if year == 2016 
 ml maximize
+ 
 
-capture program drop mlfunbase
-program mlfunbase
-    version 14.1
-    args lnf mu rho1 rho2 rho3 rho4 rho5 rho6 sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho1'^2) if $ML_y5 == 1
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho2'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho2'^2) if $ML_y5 == 2
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho3'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho3'^2) if $ML_y5 == 3
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho4'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho4'^2) if $ML_y5 == 4
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho5'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho5'^2) if $ML_y5 == 5
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho6'^2*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + $ML_y4 * ($ML_y3 - 1)*ln(1 - `rho6'^2) if $ML_y5 == 6
+/* Reassuringly, the two approaches give us the same answer */
+/* What about if we estimate via GMM? */
 
+/* Potential instruments for N */
+/* Lagged group share    */
+
+
+gmm ( (y - {b0} - {xb: PPO PFS COS PCE MSA} - {rho}*ln_swg)/({sigma=1}^2) )      ///
+    ( (y - {b0} - {xb:}                     - {rho}*ln_swg )^2 - {sigma}^2 )     ///
+	( ln_swg*(y - {b0} - {xb:} - {rho}*ln_swg)/{sigma}^2 - (N-1)/N*1/(1-{rho:}) ) ///
+	if year == 2016 & month == 1, ///
+	instruments(1: PPO PFS COS PCE MSA) instruments(2: ) instruments(3: lnelig ) winitial(unadjusted, independent) conv_maxiter(50)
+
+/* These results replicate */
+
+gmm ( (y - {b0} - {xb: PPO PFS COS PCE MSA} - {rho}*ln_swg)/({sigma=1}^2) )      ///
+    ( (y - {b0} - {xb:}                     - {rho}*ln_swg )^2 - {sigma}^2 )     ///
+	( ln_swg*(y - {b0} - {xb:} - {rho}*ln_swg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ) ///
+	if year == 2016, ///
+	instruments(PPO PFS COS PCE MSA lnelig) ///
+	winitial(unadjusted, independent) conv_maxiter(50)
+	
+/* This takes a while to run */
+
+gmm ( (y - {b0} - {xb: PPO PFS COS PCE MSA yd* sd* md*} - {rho}*ln_swg)/({sigma=1}^2) )      ///
+    ( (y - {b0} - {xb:}                     - {rho}*ln_swg )^2 - {sigma}^2 )     ///
+	( ln_swg*(y - {b0} - {xb:} - {rho}*ln_swg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ), ///
+	instruments(PPO PFS COS PCE MSA lnelig yd* sd* md*) ///
+	winitial(unadjusted, independent) conv_maxiter(50)
+
+mata:
+    void gmm_of(M, todo, b, obj, g, H)
+    {
+        real matrix y, Xb, Z, W, mX, m2, m3, ms,
+		    ln_swg, N
+		real scalar rho, sig
+		
+		y      = moptimize_util_depvar(M, 1)
+		ln_swg = moptimize_util_depvar(M, 2)
+		N      = moptimize_util_depvar(M, 3)
+		
+		Xb  = moptimize_util_xb(M, b, 1)
+		rho = moptimize_util_xb(M, b, 2)
+		rho = exp(rho)/(1+exp(rho))
+		sig = exp(moptimize_util_xb(M, b, 3))
+        
+		Z   = moptimize_util_userinfo(M, 1)
+		W   = moptimize_util_userinfo(M, 2)
+		
+	    mX = Z:*(y - Xb - rho*ln_swg)/sig^2
+	    m2 = (y - Xb - rho*ln_swg):^2 :- sig^2
+	    m3 = ln_swg:*(y - Xb - rho*ln_swg)/sig^2 :- (N:-1):/N*1/(1-rho)
+	
+        ms = mX, m2, m3
+	
+	ms = colsum(ms) / rows(ms) 
+	
+	obj = -ms*W*ms'		
+    }
 end
 
-ml model lf mlfunbase (mu: y ln_swg N lastg PT = lnelig yd* sd* PPO PFS COS PCE MSA) (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma: PPO PFS COS PCE MSA)
-ml maximize
+mata:
+void gmm_of2(M, todo, b, obj, g, H)
+{
 
-
-
-/* Before doing any serious stuff, let's get some graphs going */
-
-gen aetna = strpos(Organization_Name, "AETNA") > 0
-gen ahfmco = strpos(Organization_Name, "AHF MCO") > 0
-
-gen blbs = strpos(Organization_Name, "BLUE CROSS") > 0
-replace blbs = strpos(Organization_Name, "BLUECROSS") > 0 if blbs == 0
-
-ml model lf mlfunbase (mu: y ln_swg N lastg PT = yd* sd* PPO PFS COS PCE MSA aetna ahfmco blbs large) ///
-                (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
-ml maximize
-
-
-gen time = ym(year, month)
-
-gen co_st = County + State
-
-egen cobsno = group(co_st)
-
-tab year, gen(yd)
-tab month, gen(md)
-
-local timevars 
-forvalues i = 1/11 {
-    gen ydmd`i' = yd`i'*md`i'
-    local timevars "`timevars' yd`i' md`i' ydmd`i' "
+        real matrix y, Xb, Z, W, mX, m3, ms,
+		    ln_swg, N
+		real scalar rho, sig2
+		
+		y      = moptimize_util_depvar(M, 1)
+		ln_swg = moptimize_util_depvar(M, 2)
+		N      = moptimize_util_depvar(M, 3)
+		
+		Xb  = moptimize_util_xb(M, b, 1)
+		rho = moptimize_util_xb(M, b, 2)
+        rho = exp(rho)/(1+exp(rho))
+		Z   = moptimize_util_userinfo(M, 1)
+		W   = moptimize_util_userinfo(M, 2)
+		
+		sig2 = mean((y - Xb - rho*ln_swg):^2)
+		
+	    mX = Z:*(y - Xb - rho*ln_swg)
+	    m3 = ln_swg:*(y - Xb - rho*ln_swg)/sig2 :- (N:-1):/N*1/(1-rho)
+	
+        ms = mX, m3
+	
+	ms = colsum(ms)  
+	
+	obj = -ms*W*ms'		
 }
+end
+local vars PPO PFS COS PCE MSA
+local ct:  word count `vars'
 
-gmm ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/({sigma=1}^2) ) ///
-    ( (lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)^2 - {sigma}^2 ) ///
-	( lnswg*(lns - {b0} - {b1}*g2 - {b2}*g3 - {rho}*lnswg)/{sigma}^2 - (N-1)/N*1/(1-{rho}) ), ///
-	 instruments(1: g2 g3) instruments(2: ) instruments(3: ) winitial(unadjusted, independent) conv_maxiter(50)
+mata:
+    Model = moptimize_init()
+    moptimize_init_trace_dots(Model,"on")
+    moptimize_init_trace_params(Model,"on")
+    moptimize_init_evaluator(Model,&gmm_of())
+    moptimize_init_evaluatortype(Model,"d0")
+    moptimize_init_which(Model,"max")
+	
+    moptimize_init_eq_indepvars(Model, 1, "`vars'")	
+    moptimize_init_eq_indepvars(Model, 2, "")	
+    moptimize_init_eq_indepvars(Model, 3, "")
+    moptimize_init_depvar(Model, 1, "y")
+	moptimize_init_depvar(Model, 2, "ln_swg")
+	moptimize_init_depvar(Model, 3, "N")
 
-capture program drop mlfunbase2
-program mlfunbase2
-    version 14.1
-    args lnf mu rho1 rho2 rho3 rho4 rho5 rho6 sigma
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho1'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho1') if $ML_y4 == 1
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho2'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho2') if $ML_y4 == 2
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho3'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho3') if $ML_y4 == 3
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho4'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho4') if $ML_y4 == 4
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho5'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho5') if $ML_y4 == 5
-	quietly replace `lnf' = -($ML_y1 - `mu' - `rho6'*$ML_y2)^2/(2*exp(`sigma')) - 1/2*`sigma' + ($ML_y3 - 1) / $ML_y3*ln(1 - `rho6') if $ML_y4 == 6
+	st_view(Z=., ., "PPO PFS COS PCE MSA")	
+    Z   = Z, J(rows(Z), 1, 1)	
+	moptimize_init_userinfo(Model, 1, Z)
 
-end	 
-	 
-ml model lf mlfunbase2 (mu: y ln_swg N PT = yd* sd* PPO PFS COS PCE MSA aetna ahfmco blbs large) ///
-                (rho1:) (rho2:) (rho3:) (rho4:) (rho5:) (rho6:) (sigma:)
-ml maximize
-	 
-	 
+	ct = strtoreal(st_local("ct"))
+	W = I(ct + 3)
+	W = invsym( Z'Z )
+	W = W \ J(2, cols(W), 0)
+	W = W , J(rows(W), 2, 0)
+	W[cols(Z) + 1, cols(Z) + 1] = 1
+	W[cols(Z) + 2, cols(Z) + 2] = 1
+	
+	moptimize_init_userinfo(Model, 2, W)
+	
+    moptimize_evaluate(Model)
+	boo = moptimize(Model)
+end
+mata	
+	alginfo = "d0", "moptimize", "mwg"
+	b_mwg = amcmc(alginfo, &gmm_of(), J(1,8,0), I(8), 500, 100, 2/3, .4, 
+	        arate=., vals=., lambda=., ., Model, "noisy")
+	
+end
+
+local vars PPO PFS COS PCE MSA
+local ct:  word count `vars'
+
+mata:
+    Model = moptimize_init()
+    moptimize_init_trace_dots(Model,"on")
+    moptimize_init_trace_params(Model,"on")
+    moptimize_init_evaluator(Model,&gmm_of2())
+    moptimize_init_evaluatortype(Model,"d0")
+    moptimize_init_which(Model,"max")
+	
+    moptimize_init_eq_indepvars(Model, 1, "`vars'")	
+    moptimize_init_eq_indepvars(Model, 2, "")	
+    moptimize_init_depvar(Model, 1, "y")
+	moptimize_init_depvar(Model, 2, "ln_swg")
+	moptimize_init_depvar(Model, 3, "N")
+
+	st_view(Z=., ., "PPO PFS COS PCE MSA")	
+    Z   = Z, J(rows(Z), 1, 1)
+	moptimize_init_userinfo(Model, 1, Z)
+
+	ct = strtoreal(st_local("ct"))
+	W = I(ct + 2)
+	
+	W = invsym( (Z, J(rows(Z), 1, 1/rows(Z)))'(Z, J(rows(Z), 1, 1/rows(Z))) )
+	moptimize_init_userinfo(Model, 2, W)
+	
+    moptimize_evaluate(Model)
+	boo = moptimize(Model)
+end
+mata	
+	alginfo = "d0", "moptimize", "mwg"
+	b_mwg = amcmc(alginfo, &gmm_of2(), J(1,7,0), I(7)/10, 500, 100, 2/3, .4, 
+	        arate=., vals=., lambda=., ., Model, "noisy")
+	
+end
+
+/* Mocking up derivatives */
+
+
+mata:
+    st_view(X=.,.,"PPO PFS COS PCE MSA")
+	X = X, J(rows(X),1,1)
+	st_view(y=.,.,"y")
+	Z = X
+	st_view(ln_swg=.,.,"ln_swg")
+	st_view(N=.,.,"N")
+	
+	beta = J(1, cols(X), .1)
+	rho = .1
+	sig =  1
+	
+	W = I(cols(X) + 2)
+	
+	/* First moment */
+	
+	Xb = X*beta'
+	
+	
+	mX = Z:*(y - Xb - rho*ln_swg)/sig^2
+	
+	/* Upper right block of Hessian (regular coefficients) */
+	
+	H11 = -X'X/sig^2
+    H21 = -2*X'(y- Xb-rho*ln_swg)
+    H31 = -X'(y - Xb - rho*ln_swg)/sig^2
+ 	
+	H1 = H11, H21, H31
+	
+	H2 = (H21, H31)'
+	
+	Hsigsig = -2*sig
+	Hsigrho = -2*ln_swg'(y - Xb - rho*ln_swg)
+	Hrhorho = -ln_swg:*ln_swg/sig^2 :+ (N:-1):/N*(1/(1-rho)^2)
+	
+	
+	m2 = (y - Xb - rho*ln_swg):^2 :- sig^2
+	    m3 = ln_swg:*(y - Xb - rho*ln_swg)/sig^2 :- (N:-1):/N*1/(1-rho)
+	
+        ms = mX, m2, m3
+	
+end
+
+
+
+
+
+
+
+
