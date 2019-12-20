@@ -507,6 +507,61 @@ end
 
 
 
+/* Here, we are going to try and work things out by hand in sequential fashion.   */
+/* We also would want to think about instruments and where they need be applied   */
+/* Typically, wherever we are worried about variables correlated with instruments */
+
+mata:
+    st_view(X=.,.,"PPO PFS COS PCE MSA")
+	X = X, J(rows(X),1,1)
+	st_view(y=.,.,"y")
+	st_view(ln_swg=.,.,"ln_swg")
+	st_view(N=.,.,"N")
+	
+	rho   = 0.25    /* initial guess at rho */
+	
+	yhat = y - rho*ln_swg
+	
+	beta = invsym(X'X)*(X'yhat)   /* beta given rho */
+	
+	sig2  = sum((y - X*beta - rho* ln_swg):^2)/rows(y)   /* variance parameter given rho and beta */
+	
+	K1 = sum( ln_swg:*(y - X*beta) / (sig2)) / rows(y)
+	K2 = sum( ln_swg:^2/ (sig2) ) / rows(y)
+	K3 = sum( (N:-1):/N ) / rows(y)
+	
+	rho1 = ((K2 + K1) + sqrt((K2+K1)^2 - 4*K2*(K1 - K3))) / (2*K2)
+	rho  = ((K2 + K1) - sqrt((K2+K1)^2 - 4*K2*(K1 - K3))) / (2*K2)   /* Typically, the correct value */
+	
+	/* Next iteration */
+    /* It fucking works! */
+	
+	rho = 0.25
+	
+	for (i=1;i<=100;i++) {
+    	
+	    yhat = y - rho*ln_swg
+	    beta = invsym(X'X)*X'yhat
+	    sig2 = sum((y - X*beta - rho * ln_swg):^2) / rows(y)
+	
+	    K1 = sum( ln_swg:*(y - X*beta) / (sig2)) / rows(y)
+	    K2 = sum( ln_swg:^2/ (sig2) ) / rows(y)
+	    K3 = sum( (N:-1):/N ) / rows(y)	
+	
+	    rho  = ((K2 + K1) - sqrt((K2+K1)^2 - 4*K2*(K1 - K3))) / (2*K2) 
+	    rho, sig2
+	}
+	
+	
+	
+	
+
+	
+	
+	
+	
+	
+
 
 
 
