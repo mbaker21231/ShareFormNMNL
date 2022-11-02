@@ -1,7 +1,7 @@
-global currentdir = "C:\Users\mjbaker\Documents\github\ShareFormNMNL\"
+global currentdir = "C:\Users\mjbaker\OneDrive - CUNY\Documents\github\ShareFormNMNL\"
 set more off
 
-cd $currentdir
+cd "$currentdir"
 use ACSclean.dta, clear
 
 /* The data is arranged so that each observation is a county/year/class */
@@ -51,10 +51,6 @@ bysort geography year: gen group1 = class == 10 | class == 2
 bysort geography year: gen group2 = class >= 3 & class <=5
 bysort geography year: gen group3 = class == 7 | class == 9
 bysort geography year: gen group4 = class == 6 | class == 8
-
-
-
-
 
 
 bysort geography year: gen gnull  = class == 1 
@@ -237,7 +233,7 @@ gen gy2 = group2*year
 gen gy3 = group3*year
 gen gy4 = group4*year
 
-ml model lf mlfunbase (mu: lns lnswg Ng last = group2 group3 group4 incounty) (rho1: ) (sigma:)
+ml model lf mlfunbase (mu: lns lnswg Ng last =) (rho1: group2 group3 group4) (sigma:)
 ml maximize, difficult
 
 /* Maybe there are just too many different places */
