@@ -6,6 +6,7 @@
 /* the best way to model transit choice.                */
 
 import delimited "C:\Users\mjbaker\OneDrive - CUNY\Documents\github\ShareFormNMNL\Data\nhgis0029_csv\nhgis0029_ts_nominal_county.csv", clear
+set more off
 
 /* Let's clean up some of the data so we have a bit less */
 /* Drop margins of error for the relevant variables */
@@ -341,14 +342,65 @@ drop options
 
 bysort state county year: egen options = count(year)
 
-/* Let's consider the partition */
+/* Now, we have too many options and should try to reduce the number to 9, say */
+/* So, maybe we can combine the streetcar and bus categories, the bike/walked */
+/* categories, and the train and subway categories so we have 9 total options */
+
+/* Let's first just pare it down to 10 options */
+
+gen togroup = inlist(alt, 17, 18) /* creates a group for walking and biking */
+bysort togroup state county year : replace c53m = c53m[1] + c53m[2] if togroup & _N == 2
+
+drop togroup
+drop if alt == 17 /* No need to retain biked as a category, as lumped in with walked now */
+
+sort state county year alt
+
+/* Let's also collapse streetcar and bus */
+
+gen togroup = inlist(alt, 10, 11)
+bysort togroup state county year: replace c53m = c53m[1] + c53m[2] if togroup & _N == 2
+drop togroup
+drop if alt == 10
+
+/* Let's also collapse subway and train */
+
+gen togroup = inlist(alt, 12, 13)
+bysort togroup state county year: replace c53m = c53m[1] + c53m[2] if togroup & _N == 2
+drop togroup
+drop if alt == 12
+
+/* And let's drop collapse motorcycle */
+
+gen togroup = inlist(alt, 2, 16)
+bysort togroup state county year: replace c53m = c53m[1] + c53m[2] if togroup & _N == 2
+drop togroup
+drop if alt == 2
+
+sort state county year alt
+
+label define choicevars 1 `""Car, Truck, Van""' 2 `""CTV - Alone""' 3 `""CTV - Carpooled""' 4 ///
+             `""CTV - Carpool - 2people""' 5 `""CTV - Carpool - 3people""' 6 `""CTV - Carpool - 4 people""' ///
+			 7 `""CTV - Carpool - 5,6 people""' 8 `""CTV - Carpool - 7 or more people""' 9 `""Pub Transit""' 10 ///
+			 `""Pub Trans - Bus""' 11 `""Pub Trans - Bus or Streetcar""' 13 `""Pub Trans - Subway or Train""' ///
+			 14 `""Pub Trans - Ferry""' 15 `""Taxi""' 16 `""Alone Car or Motorcycle""' 18 `""Biked or Walked""' 19 ///
+			 `""Other""' 20 `""Worked From Home""', replace
+			 
+label values alt  choicevars
+
+tab alt
+
+
+
+/************************************************************/
+/**** now, read in sets of alternatives and create possibilities */
 
 mata:
     st_view(X=.,.,"alt")
 	x = rows(uniqrows(X))
 
 	Menus = asarray_create("real", 1)
-	for (n=2;n<=rows(x);n++) {
+	for (n=2;n<=x;n++) {
 	    asarray(Menus, n, mm_subsets(x, n))
 	}
 end
@@ -382,7 +434,7 @@ end
 
 mata: 
 	
-	perms = J(rows(ph,1,1)
+	perms = J(rows(ph),1,0)
 	info = cvpermutesetup(ph)
 	
 	perms = J(rows(ph),0,0)
@@ -391,9 +443,91 @@ mata:
 		i ++
 		perms = perms, p
 		}
-	
+
+end
 /* So, now we have all the ways of partitioning a set - so what about computing intersections */
 /* with a menu? */
+
+/* Here we can make a list of all the ways in which to partition...*/
+
+mata:
+   p   = mm_partitions(x)
+   
+group_pone = J(rows(p),0,0)   
+   
+   for (i=1;i<=cols(p);i++) {
+       
+	   col = select(p[.,i], p[.,i]:>0)
+	   ph = J(0,1,0)
+	   for (k=1;k<=rows(col);k++) {
+	       ph = ph \ J(col[k],1,k)
+	   }
+	   group_pone = group_pone , ph
+    }
+  
+end
+
+/* The previous code gives us a code for working with different partitions, but we now need to */
+/* iterate through to jumble these things up. */
+
+mata:
+
+groups = J(rows(p),0,0)
+
+for (i=1;i<=cols(group_pone); i++) {
+    info = cvpermutesetup(group_pone[.,i])
+	perms = J(rows(ph), 0, 0)
+    while ((z=cvpermute(info)) != J(0,1,.)) { 
+	    perms = perms, z
+	}
+	groups = groups, perms
+	i
+}
+
+end
+
+/* The above takes awhile, that's for sure! */
+/* Let's think about the computationally simpler approach */
+
+/* This requires us to do something like the following, which is compute r_A(a,b) */
+/* The way to start is with alternatives a, and b */
+
+/* So, if we jump here after using our original data, we get the following */
+
+egen mode = group(alt)
+
+mata:
+
+st_view(X=.,.,"state county year mode c53m")
+
+x = uniqrows(X[.,4])
+
+Menus = asarray_create("real", 1)
+	for (n=2;n<=rows(x);n++) {
+	    asarray(Menus, n, mm_subsets(rows(x), n))
+	}
+
+end
+/* Matrix-based method */
+
+Menus = J(0,rows(x),0)
+
+for (n=2;n<=rows(x);n++) {
+    ss = mm_subsets(rows(x), n)'
+	
+	ta = ss,J(rows(ss), rows(x)-cols(ss), .)
+	Menus = Menus \ ta
+	}
+	
+a = 1
+b = 2
+
+Asets = J(0,rows(x),.0)
+Bsets
+for (n=1;n<=rows(A);n++) {
+    if (any(A[n,.]:==a) & any(A[n,.]:==b)) Asets = Asets \ A[n,.]
+	}
+
 
 
 
