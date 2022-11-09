@@ -519,14 +519,23 @@ for (n=2;n<=rows(x);n++) {
 	Menus = Menus \ ta
 	}
 	
+	
+/* Picking out two alternatives to work with */
+
 a = 1
 b = 2
 
+/* Getting sets with both a and b in them */
+
 Asets = J(0,rows(x),.0)
-Bsets
 for (n=1;n<=rows(A);n++) {
     if (any(A[n,.]:==a) & any(A[n,.]:==b)) Asets = Asets \ A[n,.]
 	}
+	
+/* Now, making rows and columns of each set */
+/* What is the best way to pair the sets?   */
+/* We first would like a way to calculate the quantity we need */
+
 
 
 
