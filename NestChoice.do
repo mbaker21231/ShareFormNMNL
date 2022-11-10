@@ -7,7 +7,7 @@
 /* Let's first look at the data we have and think about */
 /* the best way to model transit choice.                */
 
-import delimited "C:\Users\mjbaker\OneDrive - CUNY\Documents\github\ShareFormNMNL\Data\nhgis0029_csv\nhgis0029_ts_nominal_county.csv", clear
+import delimited "/home/mjbaker@hunter.local/NMNL/nhgis0029_ts_nominal_county.csv", clear
 set more off
 
 /* Let's clean up some of the data so we have a bit less */
@@ -151,15 +151,15 @@ label var b84ae "In labor force, civilian, unemployed"
 label var b84af "Persons not in labor force"	
 
 label var c53aa "Car, Truck, Van"
-label var c53ab "Car, Truck, Van - drove alone"
-label var c53ac "Car, Truck, Van - Carpooled"
-label var c53ad "Car, Truck, Van - 2 Person Carpool"
-label var c53ae "Car, Truck, Van - 3 person carpool"
-label var c53af "Car, Truck, Van - 4 person carpool"
-label var c53ag "Car, Truck, Van - 5, 6 person carpool"
-label var c53ah "Car, Truck, Van - 7 or more person carpool"
+label var c53ab "Car, Truck, Van - drove alone (ab ac add up to aa)"
+label var c53ac "Car, Truck, Van - Carpooled (ab ac add up to aa)"
+label var c53ad "Car, Truck, Van - 2 Person Carpool (ad ae af ag ah add to ac)"
+label var c53ae "Car, Truck, Van - 3 person carpool (ad ae af ag ah add to ac)"
+label var c53af "Car, Truck, Van - 4 person carpool (ad ae af ag ah add to ac)"
+label var c53ag "Car, Truck, Van - 5, 6 person carpool (ad ae af ag ah add to ac)"
+label var c53ah "Car, Truck, Van - 7 or more person carpool (ad ae af ag ah add to ac)"
 
-label var c53ai "Public transit"
+label var c53ai "Public transit (aj ak al am an add up here)"
 label var c53aj "Public transit - Bus"
 label var c53ak "Public transit - Streetcar, Trolley"
 label var c53al "Public transit - Subway"
@@ -170,7 +170,7 @@ label var c53ap "Motorcycle"
 label var c53aq "Bicycle"
 label var c53ar "Walked" 
 label var c53as "Other means"
-label var c53at "Walked"
+label var c53at "Worked from home"
 
 label var cw0aa "Total commuters"
 
@@ -213,13 +213,20 @@ foreach k of local stubs {
    scalar N = `=N' + 1
   }
   
+/* Further collapsing the choice variables for ease of use */
+/* All of the above are not necessarily what we want */
+/* the following add up to total commuters */
+
+local choiceset choice2 choice3 choice10 choice11 choice12 choice13 choice14 choice15 choice16 choice17 choice18 choice19
+
+
   
 /* So, we now have all the choices for each county-year pair listed, and */
 /* what we want to do next is to describe menus. We will do this in mata */
  
-mata: st_view(C=.,.,"`cvars'")
+mata: C = st_data(.,"`choiceset'")
 mata: rows(C)
-mata: rowsmissing(C)
+mata: sum(rowmissing(C))
 
 /* So, we now have a dataset where we have 20 alternatives arranged in each row */
 /* What we then can do next is see what happens when we form all possible sets  */
@@ -230,13 +237,13 @@ for (n=2;n<=cols(C);n++) {
     ss = mm_subsets(cols(C), n)'
 	ta = ss,J(rows(ss), cols(C)-cols(ss), .)
 	Menus = Menus \ ta
-	}
+}
 	
 	
 /* Picking out two alternatives to work with */
 
 a = 1
-b = 2
+b = 4
 	
 cone = rowsum( (Menus:-a):== 0)
 ctwo = rowsum( (Menus:-b):== 0)
@@ -263,15 +270,15 @@ tn   = 1
 term = 0
 
 for (i=1;i<=rows(SubMenu);i++) {
-    for (j=1;j<=rows(SubMenu);j++) {
+    for (j=i+1;j<=rows(SubMenu);j++) {
 	    
-		mnA = i
+	mnA = i
         mnB = j
         
-		cworkA = mm_which(SubMenu[mnA,]:!=.)
+	cworkA = mm_which(SubMenu[mnA,]:!=.)
         cworkB = mm_which(SubMenu[mnB,]:!=.)
 		
-		SMA = SubMenu[mnA, cworkA]
+	SMA = SubMenu[mnA, cworkA]
         SMB = SubMenu[mnB, cworkB]
 
         paA = C[,a] :/ rowsum(C[,SMA]) 
@@ -287,10 +294,101 @@ for (i=1;i<=rows(SubMenu);i++) {
 	}
 }
 
+end
 
-/* Also, we need to think about 
+/* The code above is terribly inefficient because everything is being done in a loop */
+/* Can we do things without a loop? */
+
+mata:
+
+    ca = C[,a]
+    cb = C[,b]
+   
+    SMI = J(rows(SubMenu), cols(C), 0)
+    for (i=1;i<=rows(SubMenu);i++) {
+       	locs  = mm_which(SubMenu[i,]:!=.)
+	vlocs = SubMenu[i,locs] 
+        SMI[i,vlocs] = J(1,cols(vlocs),1)
+    }  
+
+end
+
+/* Let's just see if it works... */
+
+mata:
+tn = 0
+term = 0
+    for (i=1;i<=rows(SMI);i++) {
+    for (j=i+1;j<=rows(SMI);j++) {	
+	Caden = rowsum(C:*SMI[i,])
+        Cbden = rowsum(C:*SMI[j,])
+	paA = C[,a]:/Caden 
+        pbA = C[,b]:/Caden
+        rabA = mean(paA)/mean(pbA)
+
+        paB = C[,a]:/Cbden
+        pbB = C[,b]:/Cbden
+        rabB = mean(paB)/mean(pbB)
+
+		term = term + (ln(rabA) - ln(rabB))^2
+		tn++
+
+        }
+    }
+end
 
 
+/* Here is all the code in one place, necessary to parse out the choice sets */
+/*****************************************************************************/
+
+mata:
+
+    Menus = J(0,cols(C),0)
+
+    for (n=2;n<=cols(C);n++) {
+        ss = mm_subsets(cols(C), n)'
+	    ta = ss,J(rows(ss), cols(C)-cols(ss), .)
+	    Menus = Menus \ ta
+    }
+
+    a = 1
+    b = 4
+	
+    cone = rowsum( (Menus:-a):== 0)
+    ctwo = rowsum( (Menus:-b):== 0)
+
+    setind = cone:*ctwo
+
+    SubMenu = select(Menus, setind)
+
+    SMI = J(rows(SubMenu), cols(C), 0)
+    for (i=1;i<=rows(SubMenu);i++) {
+       	locs  = mm_which(SubMenu[i,]:!=.)
+	vlocs = SubMenu[i,locs] 
+        SMI[i,vlocs] = J(1,cols(vlocs),1)
+    }  
+
+    tn = 0
+    term = 0
+    
+    for (i=1;i<=rows(SMI);i++) {
+    for (j=i+1;j<=rows(SMI);j++) {	
+	Caden = rowsum(C:*SMI[i,])
+        Cbden = rowsum(C:*SMI[j,])
+	paA = C[,a]:/Caden 
+        pbA = C[,b]:/Caden
+        rabA = mean(paA)/mean(pbA)
+
+        paB = C[,a]:/Cbden
+        pbB = C[,b]:/Cbden
+        rabB = mean(paB)/mean(pbB)
+
+		term = term + (ln(rabA) - ln(rabB))^2
+		tn++
+
+        }
+    }
+end
 
 
 
