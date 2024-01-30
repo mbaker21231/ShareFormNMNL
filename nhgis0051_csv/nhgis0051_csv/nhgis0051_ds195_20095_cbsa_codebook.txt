@@ -1,0 +1,184 @@
+--------------------------------------------------------------------------------
+Codebook for NHGIS data file 'nhgis0051_ds195_20095_cbsa'
+--------------------------------------------------------------------------------
+ 
+Contents
+    - Data Summary
+    - Data Dictionary
+    - Citation and Use
+ 
+Additional documentation on NHGIS data sources is available at: 
+    https://www.nhgis.org/documentation/tabular-data 
+ 
+--------------------------------------------------------------------------------
+Data Summary
+--------------------------------------------------------------------------------
+ 
+Year:             2005-2009
+Geographic level: Metropolitan Statistical Area/Micropolitan Statistical Area
+Dataset:          2009 American Community Survey: 5-Year Data [2005-2009, Block Groups & Larger Areas]
+   NHGIS code:    2005_2009_ACS5a
+   NHGIS ID:      ds195
+Breakdown(s):     Geographic Component:
+                     Total area (00)
+Data type(s):     (E) Estimates
+                  (M) Margins of error
+ 
+Tables:
+ 
+1. Means of Transportation to Work
+   Universe:    Workers 16 years and over
+   Source code: B08301
+   NHGIS code:  RLZ
+ 
+--------------------------------------------------------------------------------
+Data Dictionary
+--------------------------------------------------------------------------------
+ 
+Context Fields 
+        GISJOIN:     GIS Join Match Code
+        YEAR:        Data File Year
+        STUSAB:      State Postal Abbreviation
+        REGIONA:     Region Code
+        DIVISIONA:   Division Code
+        STATEA:      State Code
+        COUNTYA:     County Code
+        COUSUBA:     County Subdivision Code
+        PLACEA:      Place Code
+        TRACTA:      Census Tract Code
+        BLKGRPA:     Block Group Code
+        CONCITA:     Consolidated City Code
+        AIANHHA:     American Indian Area/Alaska Native Area/Hawaiian Home Land Code
+        RES_ONLYA:   American Indian Area/Alaska Native Area (Reservation or Statistical Entity Only) Code
+        TRUSTA:      American Indian Area (Off-Reservation Trust Land Only)/Hawaiian Home Land Code
+        AIHHTLI:     American Indian Trust Land/ Hawaiian Home Land Indicator
+        AITSCEA:     Tribal Subdivision/Remainder Code
+        ANRCA:       Alaska Native Regional Corporation Code
+        CBSA:        Metropolitan Statistical Area/Micropolitan Statistical Area Name
+        CBSAA:       Metropolitan Statistical Area/Micropolitan Statistical Area Code
+        CSAA:        Combined Statistical Area Code
+        METDIVA:     Metropolitan Division Code
+        NECTAA:      New England City and Town Area Code
+        CNECTAA:     Combined New England City and Town Area Code
+        NECTADIVA:   New England City and Town Area Division Code
+        UAA:         Urban Area Code
+        CDCURRA:     Congressional District (2007-2013, 110th-112th Congress) Code
+        SLDUA:       State Legislative District (Upper Chamber) Code
+        SLDLA:       State Legislative District (Lower Chamber) Code
+        SUBMCDA:     Subminor Civil Division Code
+        SDELMA:      School District (Elementary)/Remainder Code
+        SDSECA:      School District (Secondary)/Remainder Code
+        SDUNIA:      School District (Unified)/Remainder Code
+        PCI:         Principal City Indicator
+        PUMAA:       Public Use Microdata Area Code
+        GEOID:       Geographic Identifier
+ 
+Data Type (E):
+    Estimates
+ 
+        NAME_E:      Area Name
+ 
+    Table 1:     Means of Transportation to Work
+    Universe:    Workers 16 years and over
+    Source code: B08301
+    NHGIS code:  RLZ
+        RLZE001:     Total
+        RLZE002:     Car, truck, or van
+        RLZE003:     Car, truck, or van: Drove alone
+        RLZE004:     Car, truck, or van: Carpooled
+        RLZE005:     Car, truck, or van: Carpooled: In 2-person carpool
+        RLZE006:     Car, truck, or van: Carpooled: In 3-person carpool
+        RLZE007:     Car, truck, or van: Carpooled: In 4-person carpool
+        RLZE008:     Car, truck, or van: Carpooled: In 5- or 6-person carpool
+        RLZE009:     Car, truck, or van: Carpooled: In 7-or-more-person carpool
+        RLZE010:     Public transportation (excluding taxicab)
+        RLZE011:     Public transportation (excluding taxicab): Bus or trolley bus
+        RLZE012:     Public transportation (excluding taxicab): Streetcar or trolley car (carro publico in Puerto Rico)
+        RLZE013:     Public transportation (excluding taxicab): Subway or elevated
+        RLZE014:     Public transportation (excluding taxicab): Railroad
+        RLZE015:     Public transportation (excluding taxicab): Ferryboat
+        RLZE016:     Taxicab
+        RLZE017:     Motorcycle
+        RLZE018:     Bicycle
+        RLZE019:     Walked
+        RLZE020:     Other means
+        RLZE021:     Worked at home
+ 
+Data Type (M):
+    Margins of error
+ 
+        NAME_M:      Area Name
+ 
+    Table 1:     Means of Transportation to Work
+    Universe:    Workers 16 years and over
+    Source code: B08301
+    NHGIS code:  RLZ
+        RLZM001:     Total
+        RLZM002:     Car, truck, or van
+        RLZM003:     Car, truck, or van: Drove alone
+        RLZM004:     Car, truck, or van: Carpooled
+        RLZM005:     Car, truck, or van: Carpooled: In 2-person carpool
+        RLZM006:     Car, truck, or van: Carpooled: In 3-person carpool
+        RLZM007:     Car, truck, or van: Carpooled: In 4-person carpool
+        RLZM008:     Car, truck, or van: Carpooled: In 5- or 6-person carpool
+        RLZM009:     Car, truck, or van: Carpooled: In 7-or-more-person carpool
+        RLZM010:     Public transportation (excluding taxicab)
+        RLZM011:     Public transportation (excluding taxicab): Bus or trolley bus
+        RLZM012:     Public transportation (excluding taxicab): Streetcar or trolley car (carro publico in Puerto Rico)
+        RLZM013:     Public transportation (excluding taxicab): Subway or elevated
+        RLZM014:     Public transportation (excluding taxicab): Railroad
+        RLZM015:     Public transportation (excluding taxicab): Ferryboat
+        RLZM016:     Taxicab
+        RLZM017:     Motorcycle
+        RLZM018:     Bicycle
+        RLZM019:     Walked
+        RLZM020:     Other means
+        RLZM021:     Worked at home
+ 
+--------------------------------------------------------------------------------
+Citation and Use of NHGIS Data
+--------------------------------------------------------------------------------
+ 
+All persons are granted a limited license to use this documentation and the
+accompanying data, subject to the following conditions:
+
+* REDISTRIBUTION: You will not redistribute the data without permission.
+
+  You may publish a subset of the data to meet journal requirements for accessing 
+  data related to a particular publication. Contact us for permission for any other 
+  redistribution; we will consider requests for free and commercial redistribution.
+
+* CITATION: You will cite NHGIS appropriately.
+
+    * Publications and research reports employing NHGIS data (either tabular or GIS) 
+      should include the following citation:
+
+        Steven Manson, Jonathan Schroeder, David Van Riper, Katherine Knowles, Tracy Kugler, Finn Roberts, and Steven Ruggles.
+        IPUMS National Historical Geographic Information System: Version 18.0 
+        [dataset]. Minneapolis, MN: IPUMS. 2023.
+        http://doi.org/10.18128/D050.V18.0
+
+    * For policy briefs, online resources, or articles in the popular press, we 
+      recommend that you cite the use of NHGIS data as follows:
+
+        IPUMS NHGIS, University of Minnesota, www.nhgis.org.
+
+These terms of use are a legally binding agreement. You can use the data only in 
+accordance with these terms, and any other use is a violation of the agreement. 
+Violations may result in revocation of the agreement and prohibition from using other 
+IPUMS data. If IPUMS or our partners are harmed from your violation, you are 
+responsible for all damages, including reasonable attorney's fees and expenses.
+        
+In addition, we request that users send us a copy of any publications, research
+reports, or educational material making use of the data or documentation.
+
+Send electronic material to: nhgis@umn.edu
+
+Printed matter should be sent to:
+
+    IPUMS NHGIS
+    Institute for Social Research and Data Innovation
+    University of Minnesota
+    50 Willey Hall
+    225 19th Ave S
+    Minneapolis, MN 55455
